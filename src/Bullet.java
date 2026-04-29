@@ -28,6 +28,13 @@ public class Bullet {
         g.fillOval(x, y, size, size);
     }
 
+    public boolean isTouchingEnemy(Enemy enemy) {
+        return x < enemy.getX() + enemy.getSize()
+                && x + size > enemy.getX()
+                && y < enemy.getY() + enemy.getSize()
+                && y + size > enemy.getY();
+    }
+
     public boolean isOffScreen() {
         return x < 0 || x > GamePanel.WIDTH || y < 0 || y > GamePanel.HEIGHT;
     }
