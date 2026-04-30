@@ -18,14 +18,17 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     private ArrayList<Enemy> enemies;
     private ArrayList<Bullet> bullets;
     private ArrayList<PowerUp> powerUps;
+    private ArrayList<FloatingText> floatingTexts;
 
-    private boolean up, down, left, right;
+    private boolean up, down, left, right, sprinting;
 
     private int damageCooldown = 0;
     private final int DAMAGE_COOLDOWN_MAX = 60;
     private int fireCooldown = 0;
     private final int NORMAL_FIRE_COOLDOWN_MAX = 15;
     private final int RAPID_FIRE_COOLDOWN_MAX = 5;
+    private int dashCooldown = 0;
+    private final int MAX_DASH_COOLDOWN = 90;
 
     private int currentFireCooldownMax = NORMAL_FIRE_COOLDOWN_MAX;
     private int rapidFireTimer = 0;
@@ -34,6 +37,8 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     private final int MENU = 0;
     private final int PLAYING = 1;
     private final int GAME_OVER = 2;
+
+    private boolean paused = false;
 
     private int gameState = MENU;
 
@@ -48,11 +53,12 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         player = new Player(400, 300);
         enemies = new ArrayList<>();
-        enemies.add(new Enemy(100, 100));
-        enemies.add(new Enemy(650, 100));
-        enemies.add(new Enemy(100, 450));
+        enemies.add(new Enemy(100, 100, wave));
+        enemies.add(new Enemy(650, 100, wave));
+        enemies.add(new Enemy(100, 450, wave));
         bullets = new ArrayList<>();
         powerUps = new ArrayList<>();
+        floatingTexts = new ArrayList<>();
     }
 
     public void start() {
@@ -81,11 +87,11 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     }
 
     private void update() {
-        if (gameState != PLAYING) {
+        if (gameState != PLAYING || paused) {
             return;
         }
 
-        player.update(up, down, left, right);
+        player.update(up, down, left, right, sprinting);
 
         for (Enemy enemy : enemies) {
             enemy.update(player);
@@ -102,6 +108,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
                 if (bullet.isTouchingEnemy(enemy)) {
                     enemy.takeDamage(10);
+                    enemy.knockBackFrom(player);
 
                     bullets.remove(i);
                     i--;
@@ -112,6 +119,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
                     if (enemy.isDead()) {
                         score += 100;
                         enemiesDefeatedThisWave++;
+                        floatingTexts.add(new FloatingText(enemy.getX(), enemy.getY(), "+100"));
 
                         int dropX = enemy.getX();
                         int dropY = enemy.getY();
@@ -165,7 +173,21 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             }
         }
 
+        for (int i = 0; i < floatingTexts.size(); i++) {
+            FloatingText text = floatingTexts.get(i);
+            text.update();
+
+            if (text.isDone()) {
+                floatingTexts.remove(i);
+                i--;
+            }
+        }
+
         if (damageCooldown > 0) {
+            damageCooldown--;
+        }
+
+        if (dashCooldown > 0) {
             damageCooldown--;
         }
 
@@ -200,6 +222,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        drawBackground(g);
 
         if (gameState == MENU) {
             drawMenu(g);
@@ -220,15 +243,30 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             powerUp.draw(g);
         }
 
+        for (FloatingText text : floatingTexts) {
+            text.draw(g);
+        }
+
         //draw the player health on the screen
         g.setColor(Color.WHITE);
         g.drawString("Health: " + player.getHealth(), 20, 20);
-        g.drawString("Enemies: " + enemies.size(), 20, 40);
-        g.drawString("Score: " + score, 20, 60);
-        g.drawString("Wave: " + wave, 20, 80);
+        g.drawString("Stamina: " + player.getStamina(), 20, 40);
+        g.drawString("Enemies: " + enemies.size(), 20, 60);
+        g.drawString("Score: " + score, 20, 80);
+        g.drawString("Wave: " + wave, 20, 100);
+        //g.drawString("Dash Cooldown" + dashCooldown / 60 + "s", 20, 140);
 
         if (rapidFireTimer > 0) {
-            g.drawString("Rapid Fire: " + rapidFireTimer / 60 + "s", 20, 100);
+            g.drawString("Rapid Fire: " + rapidFireTimer / 60 + "s", 20, 120);
+        }
+
+        if (paused) {
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("Arial", Font.BOLD, 52));
+            g.drawString("PAUSED", 300, 300);
+
+            g.setFont(new Font("Arial", Font.PLAIN, 24));
+            g.drawString("Press P to Resume", 300, 340);
         }
 
         if (gameState == GAME_OVER) {
@@ -252,10 +290,21 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             return;
         }
 
+        if (gameState == PLAYING && e.getKeyCode() == KeyEvent.VK_P) {
+            paused = !paused;
+            return;
+        }
+
         if (e.getKeyCode() == KeyEvent.VK_W) up = true;
         if (e.getKeyCode() == KeyEvent.VK_S) down = true;
         if (e.getKeyCode() == KeyEvent.VK_A) left = true;
         if (e.getKeyCode() == KeyEvent.VK_D) right = true;
+        if (e.getKeyCode() == KeyEvent.VK_SHIFT) sprinting = true;
+
+        if (e.getKeyCode() == KeyEvent.VK_SPACE && damageCooldown == 0) {
+            player.dash(up, down, left, right);
+            damageCooldown = MAX_DASH_COOLDOWN;
+        }
 
         if (e.getKeyCode() == KeyEvent.VK_UP) {
             shoot(0, -1);
@@ -281,6 +330,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         if (e.getKeyCode() == KeyEvent.VK_S) down = false;
         if (e.getKeyCode() == KeyEvent.VK_A) left = false;
         if (e.getKeyCode() == KeyEvent.VK_D) right = false;
+        if (e.getKeyCode() == KeyEvent.VK_SHIFT) sprinting = false;
     }
 
     @Override
@@ -299,10 +349,13 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         bullets.clear();
         powerUps.clear();
+        floatingTexts.clear();
+        paused = false;
 
         score = 0;
         fireCooldown = 0;
         damageCooldown = 0;
+        dashCooldown = 0;
         rapidFireTimer = 0;
         currentFireCooldownMax = NORMAL_FIRE_COOLDOWN_MAX;
 
@@ -310,6 +363,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         down = false;
         left = false;
         right = false;
+        sprinting = false;
 
         gameState = PLAYING;
 
@@ -385,5 +439,22 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         g.setFont(new Font("Arial", Font.BOLD, 28));
         g.drawString("Press R to Restart", 280, 430);
+    }
+
+    public void drawBackground(Graphics g) {
+        g.setColor(new Color(25, 25, 25));
+        g.fillRect(0, 0, WIDTH, HEIGHT);
+
+        g.setColor(new Color(40, 40, 40));
+
+        int tileSize = 40;
+
+        for (int x = 0; x < WIDTH; x += tileSize) {
+            g.drawLine(x, 0, x, HEIGHT);
+        }
+
+        for (int y = 0; y < HEIGHT; y += tileSize) {
+            g.drawLine(0, y, WIDTH, y);
+        }
     }
 }
