@@ -51,4 +51,16 @@ public class Bullet {
     public boolean isOffScreen() {
         return x < 0 || x > GamePanel.WIDTH || y < 0 || y > GamePanel.HEIGHT;
     }
+
+    public int getX() {
+        return x;
+    }
+
+    public int getY() {
+        return y;
+    }
+
+    public int getSize() {
+        return size;
+    }
 }

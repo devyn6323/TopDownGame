@@ -12,6 +12,7 @@ public class Player {
     private int stamina;
     private final int MAX_STAMINA = 100;
     private BufferedImage sprite;
+    private int damageFlashTimer = 0;
 
     public Player(int x, int y) {
         this.x = x;
@@ -64,7 +65,10 @@ public class Player {
     }
 
     public void draw(Graphics g) {
-       if (sprite != null) {
+        if (damageFlashTimer > 0) {
+            g.setColor(Color.RED);
+            g.fillRect(x, y, size, size);
+        } else if (sprite != null) {
            g.drawImage(sprite, x, y, size, size, null);
        } else {
            g.setColor(Color.GREEN);
@@ -76,8 +80,16 @@ public class Player {
         return x;
     }
 
+    public void setX(int x) {
+        this.x = x;
+    }
+
     public int getY() {
         return y;
+    }
+
+    public void setY(int y) {
+        this.y = y;
     }
 
     public int getSize() {
@@ -86,6 +98,7 @@ public class Player {
 
     public void takeDamage(int amount) {
         health -= amount;
+        damageFlashTimer = 10;
 
         if (health < 0) {
             health = 0;
@@ -117,6 +130,48 @@ public class Player {
 
     public int getStamina() {
         return stamina;
+    }
+
+    public void updateDamageFlash() {
+        if (damageFlashTimer > 0) {
+            damageFlashTimer--;
+        }
+    }
+
+    public void moveX(boolean left, boolean right, boolean sprinting) {
+        int currentSpeed = speed;
+
+        if (sprinting && stamina > 0 && ( left || right )) {
+            currentSpeed = speed + 3;
+            stamina--;
+        }
+
+        if (left) x-= currentSpeed;
+        if (right) x += currentSpeed;
+
+        keepOnScreen();
+    }
+
+    public void moveY(boolean up, boolean down, boolean sprinting) {
+        int currentSpeed = speed;
+
+        if (sprinting && stamina > 0 && ( up || down )) {
+            currentSpeed = speed + 3;
+            stamina--;
+        }
+
+        if (up) y -= currentSpeed;
+        if (down) y += currentSpeed;
+
+        keepOnScreen();
+    }
+
+    public void recoverStamina(boolean moving, boolean sprinting) {
+        if (!sprinting || !moving) {
+            if (stamina < MAX_STAMINA) {
+                stamina++;
+            }
+        }
     }
 
 

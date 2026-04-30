@@ -12,6 +12,7 @@ public class Enemy {
     private int maxHealth;
     private BufferedImage sprite;
     private String type;
+    private int hitFlashTimer = 0;
 
 
 
@@ -52,6 +53,11 @@ public class Enemy {
     }
 
     public void draw(Graphics g) {
+       if (hitFlashTimer > 0) {
+           g.setColor(Color.WHITE);
+           g.fillRect(x, y, size, size);
+       }
+
         if (sprite != null) {
             g.drawImage(sprite, x, y, size, size, null);
         } else {
@@ -112,6 +118,7 @@ public class Enemy {
 
     public void takeDamage(int amount) {
         health -= amount;
+        hitFlashTimer = 6;
 
         if (health < 0) {
             health = 0;
@@ -140,8 +147,16 @@ public class Enemy {
         return x;
     }
 
+    public void setX(int x) {
+        this.x = x;
+    }
+
     public int getY() {
         return y;
+    }
+
+    public void setY(int y) {
+        this.y = y;
     }
 
     public int getSize() {
@@ -149,4 +164,20 @@ public class Enemy {
     }
 
     public int getSpeed() {return speed;}
+
+    public void updateHitFlash() {
+        if (hitFlashTimer > 0) {
+            hitFlashTimer--;
+        }
+    }
+
+    public void moveX(Player player) {
+        if (x < player.getX()) x += speed;
+        if (x > player.getX()) x -= speed;
+    }
+
+    public void moveY(Player player) {
+        if (y < player.getY()) y += speed;
+        if (y > player.getY()) y -= speed;
+    }
 }

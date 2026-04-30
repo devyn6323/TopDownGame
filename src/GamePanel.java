@@ -13,12 +13,14 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     private Thread gameThread;
     private boolean running = false;
     private Random random = new Random();
+    private Background background;
 
     private Player player;
     private ArrayList<Enemy> enemies;
     private ArrayList<Bullet> bullets;
     private ArrayList<PowerUp> powerUps;
     private ArrayList<FloatingText> floatingTexts;
+    private ArrayList<Obstacle> obstacles;
 
     private boolean up, down, left, right, sprinting;
 
@@ -59,6 +61,15 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         bullets = new ArrayList<>();
         powerUps = new ArrayList<>();
         floatingTexts = new ArrayList<>();
+        background = new Background(WIDTH, HEIGHT);
+        obstacles = new ArrayList<>();
+
+        obstacles.add(new Obstacle(100, 150, 120, 30));
+        obstacles.add(new Obstacle(500, 150, 120, 30));
+        obstacles.add(new Obstacle(300, 400, 200, 30));
+        obstacles.add(new Obstacle(100, 300, 30, 120));
+        obstacles.add(new Obstacle(650, 300, 30, 120));
+
     }
 
     public void start() {
@@ -91,15 +102,79 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             return;
         }
 
-        player.update(up, down, left, right, sprinting);
+        boolean moving = up || down || left || right;
+
+        int oldPlayerx = player.getX();
+
+        player.moveX(left, right, sprinting);
+
+        for (Obstacle obstacle : obstacles) {
+            if (obstacle.isTouchingPlayer(player)) {
+                player.setX(oldPlayerx);
+                break;
+            }
+        }
+
+        int oldPlayerY = player.getY();
+
+        player.moveY(up, down, sprinting);
+
+        for (Obstacle obstacle : obstacles) {
+            if (obstacle.isTouchingPlayer(player)) {
+                player.setY(oldPlayerY);
+                break;
+            }
+        }
+
+        player.recoverStamina(moving, sprinting);
+
+        player.updateDamageFlash();
 
         for (Enemy enemy : enemies) {
-            enemy.update(player);
+            int oldEnemyX = enemy.getX();
+
+            enemy.moveX(player);
+
+
+
+            for (Obstacle obstacle : obstacles) {
+                if (obstacle.isTouchingEnemy(enemy)) {
+                    enemy.setX(oldEnemyX);
+                    break;
+                }
+            }
+
+            int oldEnemyY = enemy.getY();
+
+            enemy.moveY(player);
+
+            for (Obstacle obstacle : obstacles) {
+                if (obstacle.isTouchingEnemy(enemy)) {
+                    enemy.setY(oldEnemyY);
+                    break;
+                }
+            }
+            enemy.updateHitFlash();
         }
 
         for (int i = 0; i < bullets.size(); i++) {
             Bullet bullet = bullets.get(i);
             bullet.update();
+
+            boolean hitObstacle = false;
+
+            for (Obstacle obstacle : obstacles) {
+                if (obstacle.isTouchingBullet(bullet)) {
+                    bullets.remove(i);
+                    i--;
+                    hitObstacle = true;
+                    break;
+                }
+            }
+
+            if (hitObstacle) {
+                continue;
+            }
 
             boolean bulletRemoved = false;
 
@@ -222,7 +297,11 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        drawBackground(g);
+        background.draw(g);
+
+        for (Obstacle obstacle : obstacles) {
+            obstacle.draw(g);
+        }
 
         if (gameState == MENU) {
             drawMenu(g);
@@ -249,8 +328,14 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         //draw the player health on the screen
         g.setColor(Color.WHITE);
-        g.drawString("Health: " + player.getHealth(), 20, 20);
-        g.drawString("Stamina: " + player.getStamina(), 20, 40);
+        g.drawString("Health", 20, 20);
+        drawBar(g, 80, 10, 150, 15, player.getHealth(), 100, Color.RED);
+
+        g.setColor(Color.WHITE);
+        g.drawString("Stamina", 20, 45);
+        drawBar(g, 80, 35, 150, 15, player.getStamina(), 100, Color.GREEN);
+
+        g.setColor(Color.WHITE);
         g.drawString("Enemies: " + enemies.size(), 20, 60);
         g.drawString("Score: " + score, 20, 80);
         g.drawString("Wave: " + wave, 20, 100);
@@ -441,20 +526,16 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         g.drawString("Press R to Restart", 280, 430);
     }
 
-    public void drawBackground(Graphics g) {
-        g.setColor(new Color(25, 25, 25));
-        g.fillRect(0, 0, WIDTH, HEIGHT);
 
-        g.setColor(new Color(40, 40, 40));
+    private void drawBar(Graphics g, int x, int y, int width, int height, int current, int max, Color fillColor) {
+        g.setColor(Color.DARK_GRAY);
+        g.fillRect(x, y, width, height);
 
-        int tileSize = 40;
+        g.setColor(fillColor);
+        int fillWidth = (int)((double) current / max * width);
+        g.fillRect(x, y, fillWidth, height);
 
-        for (int x = 0; x < WIDTH; x += tileSize) {
-            g.drawLine(x, 0, x, HEIGHT);
-        }
-
-        for (int y = 0; y < HEIGHT; y += tileSize) {
-            g.drawLine(0, y, WIDTH, y);
-        }
+        g.setColor(Color.WHITE);
+        g.drawRect(x, y, width, height);
     }
 }
