@@ -44,6 +44,44 @@ public class Enemy {
 
     }
 
+    public Enemy(int x, int y, int wave, int difficulty) {
+        this.x = x;
+        this.y = y;
+        this.size = 32;
+
+        int randomType = (int)(Math.random() * 100);
+
+        if (randomType < 60) {
+            type = "NORMAL";
+            speed = 2 + wave / 3;
+            maxHealth = 30 + wave * 10;
+        } else if (randomType < 85) {
+            type = "FAST";
+            speed = 4 + wave / 3;
+            maxHealth = 20 + wave * 5;
+        } else {
+            type = "TANK";
+            speed = 1 + wave / 4;
+            maxHealth = 70 + wave * 15;
+        }
+
+        if (difficulty == 1) {
+            maxHealth -= 10;
+            speed = Math.max(1, speed - 1);
+        } else if (difficulty == 3) {
+            maxHealth += 20;
+            speed += 1;
+        }
+
+        if (maxHealth < 10) {
+            maxHealth = 10;
+        }
+
+        health = maxHealth;
+
+        loadSprite();
+    }
+
     public void update(Player player ) {
         if (x < player.getX()) x += speed;
         if (x > player.getX()) x -= speed;

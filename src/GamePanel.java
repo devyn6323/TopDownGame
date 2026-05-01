@@ -47,7 +47,12 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
     private int gameState = MENU;
 
-    private int highScore = 0;
+    private int difficulty = 2;
+    private String difficultyName = "Normal";
+
+    private int easyHighScore = 0;
+    private int normalHighScore = 0;
+    private int hardHighScore = 0;
     private final String HIGH_SCORE_FILE = "highscore.txt";
 
     private int wave = 1;
@@ -200,9 +205,12 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
                     System.out.println("Enemy Health: " + enemy.getHealth());
 
                     if (enemy.isDead()) {
-                        score += 100;
+                        int points = getEnemyScoreValue();
+                        score += points;
+                        floatingTexts.add(new FloatingText(enemy.getX(), enemy.getY(), "+" + points));
+
                         enemiesDefeatedThisWave++;
-                        floatingTexts.add(new FloatingText(enemy.getX(), enemy.getY(), "+100"));
+
 
                         int dropX = enemy.getX();
                         int dropY = enemy.getY();
@@ -297,10 +305,8 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         }
 
         if (player.getHealth() <= 0) {
-            if (score > highScore) {
-                highScore = score;
-                saveHighScore();
-            }
+            updateCurrentHighScore();
+
             gameState = GAME_OVER;
             System.out.println("GAME OVER");
         }
@@ -351,7 +357,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         g.drawString("Enemies: " + enemies.size(), 20, 60);
         g.drawString("Score: " + score, 20, 80);
         g.drawString("Wave: " + wave, 20, 100);
-        g.drawString("High Score: " + highScore, 20, 135);
+        g.drawString("High Score: " + getCurrentHighScore(), 20, 135);
 
         if (rapidFireTimer > 0) {
             g.drawString("Rapid Fire: " + rapidFireTimer / 60 + "s", 20, 120);
@@ -381,6 +387,21 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         if (gameState == GAME_OVER && e.getKeyCode() == KeyEvent.VK_R) {
             restartGame();
             return;
+        }
+
+        if (gameState == MENU) {
+            if (e.getKeyCode() == KeyEvent.VK_1) {
+                difficulty = 1;
+                difficultyName = "Easy";
+            }
+            if (e.getKeyCode() == KeyEvent.VK_2) {
+                difficulty = 2;
+                difficultyName = "Normal";
+            }
+            if (e.getKeyCode() == KeyEvent.VK_3) {
+                difficulty = 3;
+                difficultyName = "Hard";
+            }
         }
 
         if (gameState != PLAYING) {
@@ -439,10 +460,17 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         wave = 1;
         enemiesDefeatedThisWave = 0;
 
-        enemies.clear();
-        enemies.add(createRandomEnemy());
-        enemies.add(createRandomEnemy());
-        enemies.add(createRandomEnemy());
+        int startingEnemies = 3;
+
+        if (difficulty == 1) {
+            startingEnemies = 2;
+        } else if (difficulty == 4) {
+            startingEnemies = 4;
+        }
+
+        for (int i = 0; i < startingEnemies; i++) {
+            enemies.add(createRandomEnemy());
+        }
 
         bullets.clear();
         powerUps.clear();
@@ -471,6 +499,12 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         enemiesDefeatedThisWave = 0;
 
         int enemyCount = 2 + wave;
+
+        if (difficulty == 1) {
+            enemyCount = 1 + wave;
+        } else if (difficulty == 3) {
+            enemyCount = 3 + wave;
+        }
 
         for (int i = 0; i < enemyCount; i++) {
             enemies.add(createRandomEnemy());
@@ -528,10 +562,10 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             int y = random.nextInt(HEIGHT - size);
 
             if (isSafeSpawn(x, y, size)) {
-                return new Enemy(x, y, wave);
+                return new Enemy(x, y, wave, difficulty);
             }
         }
-        return new Enemy(100, 100, wave);
+        return new Enemy(100, 100, wave, difficulty);
     }
 
     private void loadHighScore() {
@@ -540,22 +574,49 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
             if (file.exists()) {
                 Scanner scanner = new Scanner(file);
-                highScore = scanner.nextInt();
+
+                if (scanner.hasNextInt()) {
+                    easyHighScore = scanner.nextInt();
+                }
+
+                if (scanner.hasNextInt()) {
+                    normalHighScore = scanner.nextInt();
+                }
+
+                if (scanner.hasNextInt()) {
+                    hardHighScore = scanner.nextInt();
+                }
+
                 scanner.close();
             }
         } catch (Exception e) {
-            highScore = 0;
+            easyHighScore = 0;
+            normalHighScore = 0;
+            hardHighScore = 0;
         }
     }
 
     private void saveHighScore() {
         try {
             PrintWriter writer = new PrintWriter(HIGH_SCORE_FILE);
-            writer.println(highScore);
+
+            writer.println(easyHighScore);
+            writer.println(normalHighScore);
+            writer.println(hardHighScore);
+
             writer.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private int getEnemyScoreValue() {
+        if (difficulty == 1) {
+            return 75;
+        } else if (difficulty == 3) {
+            return 150;
+        }
+        return 100;
     }
 
     public void drawMenu(Graphics g) {
@@ -570,25 +631,30 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         g.drawString("Survive waves and collect power-ups", 200, 340);
 
         g.setFont(new Font("Arial", Font.PLAIN, 24));
-        g.drawString("High Score: " + highScore, 315, 390);
+        g.drawString("High Score: " + getCurrentHighScore(), 315, 390);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 24));
+        g.drawString("Difficulty: " + difficultyName, 300, 420);
+        g.drawString("Press 1 Easy, 2 Normal, 3 Hard", 220, 450);
 
         g.setFont(new Font("Arial", Font.BOLD, 28));
-        g.drawString("Press ENTER to Start", 260, 455);
+        g.drawString("Press ENTER to Start", 260, 500);
     }
 
     public void drawGameOver(Graphics g) {
         g.setColor(Color.WHITE);
 
         g.setFont(new Font("Arial", Font.BOLD, 52));
-        g.drawString("GAME OVER", 245, 240);
+        g.drawString("GAME OVER", 245, 230);
 
         g.setFont(new Font("Arial", Font.PLAIN, 26));
-        g.drawString("Final Score: " + score, 310, 300);
-        g.drawString("High Score: " + highScore, 300, 340);
-        g.drawString("Wave Reached: " + wave, 300, 380);
+        g.drawString("Difficulty: " + difficultyName, 310, 285);
+        g.drawString("Final Score: " + score, 310, 325);
+        g.drawString("High Score: " + getCurrentHighScore(), 310, 365);
+        g.drawString("Wave Reached: " + wave, 300, 405);
 
         g.setFont(new Font("Arial", Font.BOLD, 28));
-        g.drawString("Press R to Restart", 280, 450);
+        g.drawString("Press R to Restart", 280, 465);
     }
 
 
@@ -602,5 +668,31 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         g.setColor(Color.WHITE);
         g.drawRect(x, y, width, height);
+    }
+
+    int getDifficulty() {
+        return difficulty;
+    }
+
+    private int getCurrentHighScore() {
+        if (difficulty == 1) {
+            return easyHighScore;
+        } else if (difficulty == 3) {
+            return hardHighScore;
+        }
+        return normalHighScore;
+    }
+
+    private void updateCurrentHighScore() {
+        if (difficulty == 1 && score > easyHighScore) {
+            easyHighScore = score;
+            saveHighScore();
+        } else if (difficulty == 2 && score > normalHighScore) {
+            normalHighScore = score;
+            saveHighScore();
+        } else if (difficulty == 3 && score > hardHighScore) {
+            hardHighScore = score;
+            saveHighScore();
+        }
     }
 }
