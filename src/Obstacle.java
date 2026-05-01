@@ -42,4 +42,27 @@ public class Obstacle {
                 && y < enemy.getY() + enemy.getSize()
                 && y + height > enemy.getY();
     }
+
+    public boolean isTouchingRect(int rectX, int rectY, int rectSize) {
+        return x < rectX + rectSize
+                && x + width > rectX
+                && y < rectY + rectSize
+                && y + height > rectY;
+    }
+
+    public int getX() {
+        return x;
+    }
+
+    public int getY() {
+        return y;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
 }

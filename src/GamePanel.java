@@ -2,8 +2,11 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.io.File;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.Scanner;
 
 public class GamePanel extends JPanel implements Runnable, KeyListener {
 
@@ -44,6 +47,9 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
     private int gameState = MENU;
 
+    private int highScore = 0;
+    private final String HIGH_SCORE_FILE = "highscore.txt";
+
     private int wave = 1;
     private int enemiesDefeatedThisWave = 0;
 
@@ -63,6 +69,8 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         floatingTexts = new ArrayList<>();
         background = new Background(WIDTH, HEIGHT);
         obstacles = new ArrayList<>();
+
+        loadHighScore();
 
         obstacles.add(new Obstacle(100, 150, 120, 30));
         obstacles.add(new Obstacle(500, 150, 120, 30));
@@ -289,6 +297,10 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         }
 
         if (player.getHealth() <= 0) {
+            if (score > highScore) {
+                highScore = score;
+                saveHighScore();
+            }
             gameState = GAME_OVER;
             System.out.println("GAME OVER");
         }
@@ -339,7 +351,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         g.drawString("Enemies: " + enemies.size(), 20, 60);
         g.drawString("Score: " + score, 20, 80);
         g.drawString("Wave: " + wave, 20, 100);
-        //g.drawString("Dash Cooldown" + dashCooldown / 60 + "s", 20, 140);
+        g.drawString("High Score: " + highScore, 20, 135);
 
         if (rapidFireTimer > 0) {
             g.drawString("Rapid Fire: " + rapidFireTimer / 60 + "s", 20, 120);
@@ -428,9 +440,9 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         enemiesDefeatedThisWave = 0;
 
         enemies.clear();
-        enemies.add(new Enemy(100, 100, wave));
-        enemies.add(new Enemy(650, 100, wave));
-        enemies.add(new Enemy(100, 450, wave));
+        enemies.add(createRandomEnemy());
+        enemies.add(createRandomEnemy());
+        enemies.add(createRandomEnemy());
 
         bullets.clear();
         powerUps.clear();
@@ -461,10 +473,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         int enemyCount = 2 + wave;
 
         for (int i = 0; i < enemyCount; i++) {
-            int x = 50 + (i * 120) % (WIDTH - 100);
-            int y = 50 + (i * 90) % (HEIGHT - 100);
-
-            enemies.add(new Enemy(x, y, wave));
+            enemies.add(createRandomEnemy());
         }
         System.out.println("Wave " + wave + " started!");
     }
@@ -497,6 +506,58 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         fireCooldown = currentFireCooldownMax;
     }
 
+    private boolean isSafeSpawn(int x, int y, int size) {
+        for (Obstacle obstacle : obstacles) {
+            if (obstacle.isTouchingRect(x, y, size)) {
+                return false;
+            }
+        }
+        int buffer = 40;
+
+        if (Math.abs(x - player.getX()) < buffer && Math.abs(y - player.getY()) < buffer) {
+            return false;
+        }
+        return true;
+    }
+
+    private Enemy createRandomEnemy() {
+        int size = 32;
+
+        for (int attempt = 0; attempt < 100; attempt++) {
+            int x = random.nextInt(WIDTH - size);
+            int y = random.nextInt(HEIGHT - size);
+
+            if (isSafeSpawn(x, y, size)) {
+                return new Enemy(x, y, wave);
+            }
+        }
+        return new Enemy(100, 100, wave);
+    }
+
+    private void loadHighScore() {
+        try {
+            File file = new File(HIGH_SCORE_FILE);
+
+            if (file.exists()) {
+                Scanner scanner = new Scanner(file);
+                highScore = scanner.nextInt();
+                scanner.close();
+            }
+        } catch (Exception e) {
+            highScore = 0;
+        }
+    }
+
+    private void saveHighScore() {
+        try {
+            PrintWriter writer = new PrintWriter(HIGH_SCORE_FILE);
+            writer.println(highScore);
+            writer.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void drawMenu(Graphics g) {
         g.setColor(Color.WHITE);
 
@@ -508,8 +569,11 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         g.drawString("Arrow Keys = Shoot", 285, 300);
         g.drawString("Survive waves and collect power-ups", 200, 340);
 
+        g.setFont(new Font("Arial", Font.PLAIN, 24));
+        g.drawString("High Score: " + highScore, 315, 390);
+
         g.setFont(new Font("Arial", Font.BOLD, 28));
-        g.drawString("Press ENTER to Start", 260, 430);
+        g.drawString("Press ENTER to Start", 260, 455);
     }
 
     public void drawGameOver(Graphics g) {
@@ -520,10 +584,11 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         g.setFont(new Font("Arial", Font.PLAIN, 26));
         g.drawString("Final Score: " + score, 310, 300);
-        g.drawString("Wave Reached: " + wave, 300, 340);
+        g.drawString("High Score: " + highScore, 300, 340);
+        g.drawString("Wave Reached: " + wave, 300, 380);
 
         g.setFont(new Font("Arial", Font.BOLD, 28));
-        g.drawString("Press R to Restart", 280, 430);
+        g.drawString("Press R to Restart", 280, 450);
     }
 
 
