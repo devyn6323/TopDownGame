@@ -48,8 +48,11 @@ public class Bullet {
                 && y + size > enemy.getY();
     }
 
-    public boolean isOffScreen() {
-        return x < 0 || x > GamePanel.WIDTH || y < 0 || y > GamePanel.HEIGHT;
+    public boolean isOffScreen(int screenWidth, int screenHeight) {
+        return x + size < 0 ||
+                x > screenWidth ||
+                y + size < 0 ||
+                y > screenHeight;
     }
 
     public int getX() {

@@ -10,8 +10,9 @@ import java.util.Scanner;
 
 public class GamePanel extends JPanel implements Runnable, KeyListener {
 
-    public static final int WIDTH = 800;
-    public static final int HEIGHT = 600;
+
+    public static final int DEFAULT_WIDTH = 800;
+    public static final int DEFAULT_HEIGHT = 600;
 
     private Thread gameThread;
     private boolean running = false;
@@ -42,8 +43,15 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     private final int MENU = 0;
     private final int PLAYING = 1;
     private final int GAME_OVER = 2;
+    private final int UPGRADE = 3;
+
+    private final int UPGRADE_MAX_HEALTH = 1;
+    private final int UPGRADE_SPEED = 2;
+    private final int UPGRADE_FIRE_RATE = 3;
+    private final int UPGRADE_BULLET_DAMAGE = 4;
 
     private boolean paused = false;
+    private boolean showHelp = false;
 
     private int gameState = MENU;
 
@@ -58,8 +66,12 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     private int wave = 1;
     private int enemiesDefeatedThisWave = 0;
 
+    private int bulletDamage = 10;
+    private int fireRateUpgradeCount = 0;
+
     public GamePanel() {
-        setPreferredSize(new Dimension(WIDTH, HEIGHT));
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        setPreferredSize(screenSize);
         setBackground(Color.BLACK);
         setFocusable(true);
         addKeyListener(this);
@@ -72,7 +84,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         bullets = new ArrayList<>();
         powerUps = new ArrayList<>();
         floatingTexts = new ArrayList<>();
-        background = new Background(WIDTH, HEIGHT);
+        background = new Background(screenSize.width, screenSize.height);
         obstacles = new ArrayList<>();
 
         loadHighScore();
@@ -119,7 +131,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         int oldPlayerx = player.getX();
 
-        player.moveX(left, right, sprinting);
+        player.moveX(left, right, sprinting, getGameWidth(), getGameHeight());
 
         for (Obstacle obstacle : obstacles) {
             if (obstacle.isTouchingPlayer(player)) {
@@ -128,9 +140,11 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             }
         }
 
+        clampPlayerToScreen();
+
         int oldPlayerY = player.getY();
 
-        player.moveY(up, down, sprinting);
+        player.moveY(up, down, sprinting, getGameWidth(), getGameHeight());
 
         for (Obstacle obstacle : obstacles) {
             if (obstacle.isTouchingPlayer(player)) {
@@ -138,6 +152,8 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
                 break;
             }
         }
+
+        clampPlayerToScreen();
 
         player.recoverStamina(moving, sprinting);
 
@@ -195,7 +211,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
                 Enemy enemy = enemies.get(j);
 
                 if (bullet.isTouchingEnemy(enemy)) {
-                    enemy.takeDamage(10);
+                    enemy.takeDamage(bulletDamage);
                     enemy.knockBackFrom(player);
 
                     bullets.remove(i);
@@ -240,7 +256,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
                 continue;
             }
 
-            if (bullet.isOffScreen()) {
+            if (bullet.isOffScreen(getGameWidth(), getGameHeight())) {
                 bullets.remove(i);
                 i--;
             }
@@ -279,7 +295,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         }
 
         if (dashCooldown > 0) {
-            damageCooldown--;
+            dashCooldown--;
         }
 
         if (fireCooldown > 0) {
@@ -326,6 +342,11 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             return;
         }
 
+        if (gameState == UPGRADE) {
+            drawUpgradeScreen(g);
+            return;
+        }
+
         player.draw(g);
 
         for (Enemy enemy : enemies) {
@@ -347,7 +368,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         //draw the player health on the screen
         g.setColor(Color.WHITE);
         g.drawString("Health", 20, 20);
-        drawBar(g, 80, 10, 150, 15, player.getHealth(), 100, Color.RED);
+        drawBar(g, 80, 10, 150, 15, player.getHealth(), player.getMaxHealth(), Color.RED);
 
         g.setColor(Color.WHITE);
         g.drawString("Stamina", 20, 45);
@@ -366,10 +387,14 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         if (paused) {
             g.setColor(Color.WHITE);
             g.setFont(new Font("Arial", Font.BOLD, 52));
-            g.drawString("PAUSED", 300, 300);
+            drawCenteredString(g, "PAUSED", 300);
 
             g.setFont(new Font("Arial", Font.PLAIN, 24));
-            g.drawString("Press P to Resume", 300, 340);
+            drawCenteredString(g,"Press P to Resume", 340);
+        }
+
+        if (showHelp) {
+            drawHelpScreen(g);
         }
 
         if (gameState == GAME_OVER) {
@@ -379,6 +404,10 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+            System.exit(0);
+        }
+
         if (gameState == MENU && e.getKeyCode() == KeyEvent.VK_ENTER) {
             restartGame();
             return;
@@ -404,12 +433,33 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             }
         }
 
+        if (gameState == UPGRADE) {
+            if (e.getKeyCode() == KeyEvent.VK_1) {
+               applyUpgrade(UPGRADE_MAX_HEALTH);
+            } else if (e.getKeyCode() == KeyEvent.VK_2) {
+                applyUpgrade(UPGRADE_SPEED);
+            } else if (e.getKeyCode() == KeyEvent.VK_3) {
+                applyUpgrade(UPGRADE_FIRE_RATE);
+            } else if (e.getKeyCode() == KeyEvent.VK_4) {
+                applyUpgrade(UPGRADE_BULLET_DAMAGE);
+            }
+            return;
+        }
+
         if (gameState != PLAYING) {
             return;
         }
 
         if (gameState == PLAYING && e.getKeyCode() == KeyEvent.VK_P) {
             paused = !paused;
+            return;
+        }
+
+        if (e.getKeyCode() == KeyEvent.VK_H) {
+            showHelp = !showHelp;
+            if (gameState == PLAYING) {
+                paused = showHelp;
+            }
             return;
         }
 
@@ -420,7 +470,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         if (e.getKeyCode() == KeyEvent.VK_SHIFT) sprinting = true;
 
         if (e.getKeyCode() == KeyEvent.VK_SPACE && damageCooldown == 0) {
-            player.dash(up, down, left, right);
+            player.dash(up, down, left, right, getGameWidth(), getGameHeight());
             damageCooldown = MAX_DASH_COOLDOWN;
         }
 
@@ -455,7 +505,7 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     public void keyTyped(KeyEvent e) {}
 
     private void restartGame() {
-        player = new Player(400, 300);
+        player = new Player(getGameWidth() / 2, getGameHeight() / 2);
 
         wave = 1;
         enemiesDefeatedThisWave = 0;
@@ -464,9 +514,11 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         if (difficulty == 1) {
             startingEnemies = 2;
-        } else if (difficulty == 4) {
+        } else if (difficulty == 3) {
             startingEnemies = 4;
         }
+
+        enemies.clear();
 
         for (int i = 0; i < startingEnemies; i++) {
             enemies.add(createRandomEnemy());
@@ -479,6 +531,8 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         score = 0;
         fireCooldown = 0;
+        bulletDamage = 10;
+        fireRateUpgradeCount = 0;
         damageCooldown = 0;
         dashCooldown = 0;
         rapidFireTimer = 0;
@@ -495,6 +549,10 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
     }
 
     private void startNextWave() {
+        gameState = UPGRADE;
+    }
+
+    private void beginNextWave() {
         wave++;
         enemiesDefeatedThisWave = 0;
 
@@ -509,6 +567,8 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         for (int i = 0; i < enemyCount; i++) {
             enemies.add(createRandomEnemy());
         }
+
+        gameState = PLAYING;
         System.out.println("Wave " + wave + " started!");
     }
 
@@ -558,8 +618,8 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         int size = 32;
 
         for (int attempt = 0; attempt < 100; attempt++) {
-            int x = random.nextInt(WIDTH - size);
-            int y = random.nextInt(HEIGHT - size);
+            int x = random.nextInt(getGameWidth() - size);
+            int y = random.nextInt(getGameHeight() - size);
 
             if (isSafeSpawn(x, y, size)) {
                 return new Enemy(x, y, wave, difficulty);
@@ -623,22 +683,68 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         g.setColor(Color.WHITE);
 
         g.setFont(new Font("Arial", Font.BOLD, 52));
-        g.drawString("TOP DOWN SURVIVAL", 140, 180);
+        drawCenteredString(g, "TOP DOWN SURVIVAL", getGameHeight() / 2 - 180);
 
         g.setFont(new Font("Arial", Font.PLAIN, 26));
-        g.drawString("WASD = Move", 310, 260);
-        g.drawString("Arrow Keys = Shoot", 285, 300);
-        g.drawString("Survive waves and collect power-ups", 200, 340);
+        drawCenteredString(g, "WASD = Move", getGameHeight() / 2 - 80);
+        drawCenteredString(g, "Arrow Keys = Shoot", getGameHeight() / 2 - 40);
+        drawCenteredString(g, "Survive waves and collect power-ups", getGameHeight() / 2);
 
         g.setFont(new Font("Arial", Font.PLAIN, 24));
-        g.drawString("High Score: " + getCurrentHighScore(), 315, 390);
-
-        g.setFont(new Font("Arial", Font.PLAIN, 24));
-        g.drawString("Difficulty: " + difficultyName, 300, 420);
-        g.drawString("Press 1 Easy, 2 Normal, 3 Hard", 220, 450);
+        drawCenteredString(g, "High Score: " + getCurrentHighScore(), getGameHeight() / + 50);
+        drawCenteredString(g, "Difficulty: " + difficultyName, getGameHeight() / 2 + 85);
+        drawCenteredString(g, "Press 1 Easy, 2 Normal, 3 Hard", getGameHeight() / 2 + 120);
 
         g.setFont(new Font("Arial", Font.BOLD, 28));
-        g.drawString("Press ENTER to Start", 260, 500);
+        drawCenteredString(g, "Press ENTER to Start", getGameHeight() / 2 + 180);
+    }
+
+    public void drawUpgradeScreen(Graphics g) {
+        g.setColor(new Color(15, 15, 20));
+        g.fillRect(0, 0, getGameWidth(), getGameHeight());
+
+
+
+        g.setColor(Color.WHITE);;
+        g.setFont(new Font("Arial", Font.BOLD, 48));
+        drawCenteredString(g, "CHOOSE AN UPGRADE",110);
+
+        drawUpgradeBox(g, 180, "1", "+10 Max Health", "Increase your maximum health.");
+        drawUpgradeBox(g, 270, "2", "+1 Movement Speed", "Move faster every wave.");
+        drawUpgradeBox(g, 360, "3", "Faster Shooting", "Lower your fire cooldown.");
+        drawUpgradeBox(g, 450, "4", "+5 Bullet Damage", "Deal more damage per shot.");
+
+        drawCenteredString(g, "Max Health: " + player.getMaxHealth() + " / 200",545);
+        drawCenteredString(g, "Speed: " + player.getSpeed() + " / 8",570);
+        drawCenteredString(g, "Bullet Damage: " + bulletDamage + " / 50", 595);
+        drawCenteredString(g, "Fire Cooldown: " + currentFireCooldownMax + " / 3 minimum", 620);
+
+        g.setColor(Color.LIGHT_GRAY);
+        g.setFont(new Font("Arial", Font.PLAIN, 18));
+        drawCenteredString(g, "Press 1, 2, 3, or 4 to continue", 670);
+
+
+    }
+
+    private void drawUpgradeBox(Graphics g, int y, String key, String title, String description) {
+        int boxWidth = 560;
+        int boxHeight = 65;
+
+        int centeredX = (getGameWidth() - boxWidth) / 2;
+
+        g.setColor(new Color(35, 35,45));
+        g.fillRoundRect(centeredX, y, boxWidth, boxHeight, 15, 15);
+
+        g.setColor(Color.WHITE);
+        g.drawRoundRect(centeredX, y, boxWidth, boxHeight, 15, 15);
+
+
+        g.setFont(new Font("Arial", Font.BOLD, 26));
+        g.drawString(key + " - " + title, centeredX + 25, y + 28);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 18));
+        g.setColor(Color.LIGHT_GRAY);
+        g.drawString(description, centeredX , y + 52);
     }
 
     public void drawGameOver(Graphics g) {
@@ -655,6 +761,27 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
 
         g.setFont(new Font("Arial", Font.BOLD, 28));
         g.drawString("Press R to Restart", 280, 465);
+    }
+
+    private void drawHelpScreen(Graphics g) {
+        g.setColor(new Color(0, 0, 0, 100));
+        g.fillRect(180, 90, 440, 420);
+
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Arial", Font.BOLD, 32));
+        g.drawString("CONTROLS", 310, 140);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 22));
+        g.drawString("WASD - Move", 250, 200);
+        g.drawString("Arrow Keys - Shoot", 250, 235);
+        g.drawString("SHIFT - Sprint", 250, 270);
+        g.drawString("SPACE - Dash", 250, 305);
+        g.drawString("P - Pause", 250, 340);
+        g.drawString("H - Toggle Help", 250, 375);
+        g.drawString("R - Restart After Game Over", 250, 410);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 18));
+        g.drawString("Press H to close", 330, 470);
     }
 
 
@@ -683,6 +810,30 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
         return normalHighScore;
     }
 
+    private void applyUpgrade(int upgradeType) {
+        if (upgradeType == UPGRADE_MAX_HEALTH) {
+            player.increaseMaxHealth(10);
+        } else if (upgradeType == UPGRADE_SPEED) {
+            player.increaseSpeed(1);
+        } else if (upgradeType == UPGRADE_FIRE_RATE) {
+            if (currentFireCooldownMax > 3) {
+                currentFireCooldownMax -= 2;
+            }
+            if (currentFireCooldownMax < 3) {
+                currentFireCooldownMax = 3;
+            }
+            fireRateUpgradeCount++;
+        } else if (upgradeType == UPGRADE_BULLET_DAMAGE) {
+            if (bulletDamage < 50) {
+                bulletDamage += 5;
+            }
+            if (bulletDamage > 50) {
+                bulletDamage = 50;
+            }
+        }
+        beginNextWave();
+    }
+
     private void updateCurrentHighScore() {
         if (difficulty == 1 && score > easyHighScore) {
             easyHighScore = score;
@@ -694,5 +845,38 @@ public class GamePanel extends JPanel implements Runnable, KeyListener {
             hardHighScore = score;
             saveHighScore();
         }
+    }
+
+    private void clampPlayerToScreen() {
+        if (player.getX() < 0) {
+            player.setX(0);
+        }
+
+        if (player.getY() < 0) {
+            player.setY(0);
+        }
+
+        if (player.getX() + player.getSize() > getGameWidth()) {
+            player.setX(getGameWidth() - player.getSize());
+        }
+
+        if (player.getY() + player.getSize() > getGameHeight()) {
+            player.setY(getGameHeight() - player.getSize());
+        }
+    }
+
+    public int getGameWidth() {
+        return getWidth() > 0 ? getWidth() : DEFAULT_WIDTH;
+    }
+
+    public int getGameHeight() {
+        return getHeight() > 0 ? getHeight() : DEFAULT_HEIGHT;
+    }
+
+    private void drawCenteredString(Graphics g, String text, int y) {
+        FontMetrics fm = g.getFontMetrics();
+        int textWidth = fm.stringWidth(text);
+        int x = (getGameWidth() - textWidth) / 2;
+        g.drawString(text, x, y);
     }
 }

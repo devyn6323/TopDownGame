@@ -13,13 +13,15 @@ public class Player {
     private final int MAX_STAMINA = 100;
     private BufferedImage sprite;
     private int damageFlashTimer = 0;
+    private int maxHealth;
 
     public Player(int x, int y) {
         this.x = x;
         this.y = y;
         this.size = 32;
         this.speed = 4;
-        this.health = 100;
+        this.maxHealth = 100;
+        this.health = maxHealth;
         this.stamina = 100;
 
         try {
@@ -29,7 +31,7 @@ public class Player {
         }
     }
 
-    public void update(boolean up, boolean down, boolean left, boolean right, boolean sprinting) {
+    public void update(boolean up, boolean down, boolean left, boolean right, boolean sprinting, int screenWidth, int screenHeight) {
         boolean moving = up || down || left || right;
 
         int currentSpeed = speed;
@@ -48,19 +50,19 @@ public class Player {
         if (left) x -= currentSpeed;
         if (right) x += currentSpeed;
 
-        keepOnScreen();
+        keepOnScreen(screenWidth, screenHeight);
     }
 
-    private void keepOnScreen() {
+    private void keepOnScreen(int screenWidth, int screenHeight) {
         if (x < 0) x = 0;
         if (y < 0) y = 0;
 
-        if (x > GamePanel.WIDTH - size) {
-            x = GamePanel.WIDTH - size;
+        if (x > screenWidth - size) {
+            x = screenWidth - size;
         }
 
-        if (y > GamePanel.HEIGHT - size) {
-            y = GamePanel.HEIGHT - size;
+        if (y > screenHeight - size) {
+            y = screenHeight - size;
         }
     }
 
@@ -105,7 +107,7 @@ public class Player {
         }
     }
 
-    public void dash(boolean up, boolean down, boolean left, boolean right) {
+    public void dash(boolean up, boolean down, boolean left, boolean right, int screenWidth, int screenHeight) {
         int dashDistance = 60;
 
         if (up) y -= dashDistance;
@@ -113,14 +115,14 @@ public class Player {
         if (left) x -= dashDistance;
         if (right) x += dashDistance;
 
-        keepOnScreen();
+        keepOnScreen(screenWidth, screenHeight );
     }
 
     public void heal(int amount) {
         health += amount;
 
-        if (health > 100) {
-            health = 100;
+        if (health > maxHealth) {
+            health = maxHealth;
         }
     }
 
@@ -138,7 +140,7 @@ public class Player {
         }
     }
 
-    public void moveX(boolean left, boolean right, boolean sprinting) {
+    public void moveX(boolean left, boolean right, boolean sprinting, int gameWidth, int gameHeight) {
         int currentSpeed = speed;
 
         if (sprinting && stamina > 0 && ( left || right )) {
@@ -149,10 +151,10 @@ public class Player {
         if (left) x-= currentSpeed;
         if (right) x += currentSpeed;
 
-        keepOnScreen();
+        keepOnScreen(gameWidth, gameHeight);
     }
 
-    public void moveY(boolean up, boolean down, boolean sprinting) {
+    public void moveY(boolean up, boolean down, boolean sprinting, int screenWidth, int screenHeight) {
         int currentSpeed = speed;
 
         if (sprinting && stamina > 0 && ( up || down )) {
@@ -163,7 +165,7 @@ public class Player {
         if (up) y -= currentSpeed;
         if (down) y += currentSpeed;
 
-        keepOnScreen();
+        keepOnScreen(screenWidth, screenHeight);
     }
 
     public void recoverStamina(boolean moving, boolean sprinting) {
@@ -172,6 +174,38 @@ public class Player {
                 stamina++;
             }
         }
+    }
+
+    public void increaseMaxHealth(int amount) {
+       if (maxHealth < 200) {
+           maxHealth += amount;
+           health += amount;
+       }
+
+       if (maxHealth > 200) {
+           maxHealth = 200;
+       }
+
+        if (health > maxHealth) {
+            health = maxHealth;
+        }
+    }
+
+    public void increaseSpeed(int amount) {
+        if (speed < 8) {
+            speed += amount;
+        }
+        if (speed > 8) {
+            speed = 8;
+        }
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
+    }
+
+    public int getSpeed() {
+        return speed;
     }
 
 
